@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+#    sets
+#    Copyright (C) 2005  Petko Petkov (GNUCITIZEN) pdp@gnucitizen.org
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+__version__	= '1.0'
+__author__	= 'Petko Petkov'
+
+__usage__	= """
+usage: met.sets [options] term1 term2 term3 ...
+	-h			- display this page
+	-V			- display version
+"""
+
+import sys
+import signal
+signal.signal(signal.SIGINT, lambda signum, frame: sys.exit())
+
+import getopt
+import met.google
+
+try:
+	opts, terms = getopt.gnu_getopt(sys.argv[1:], 'hV')
+
+	for opt, val in opts:
+		if opt == '-h':
+			raise SystemExit(__usage__)
+
+		elif opt == '-V':
+			raise SystemExit('met.sets %s' % __version__)
+
+	if len(terms) == 0:
+		raise SystemError(__usage__)
+
+	sets = met.google.Sets()
+
+	for item in sets.search(*terms):
+		print item
+
+except Exception, e: raise SystemExit(e)

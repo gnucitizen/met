@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+#    senum
+#    Copyright (C) 2005  Petko Petkov (GNUCITIZEN) pdp@gnucitizen.org
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+__version__	= '0.4'
+__author__	= 'Petko Petkov'
+
+__usage__	= """
+usage: met.senum [options] host [query]
+	-h			- display this page
+	-V			- display version
+	-v			- display verbose messages
+	-l level	- depth level (1, 2, 3, ..., all|0)
+	-d sec		- delay between requests (default 5)
+"""
+
+import sys
+import signal
+signal.signal(signal.SIGINT, lambda signum, frame: sys.exit())
+
+HOST			= ''
+LEVEL			= 1
+DELAY			= 5
+QUERY			= ''
+RESULTS			= set()
+VERBOSITY		= 0
+
+def print_v(message, level = 1):
+	if level <= VERBOSITY: print '-' * level, message
+
+try:
+	import getopt
+
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'hVvl:d:')
+
+	for opt, val in opts:
+		if opt == '-h':
+			raise SystemExit(__usage__)
+
+		elif opt == '-V':
+			raise SystemExit('met.senum %s' % __version__)
+
+		elif opt == '-v':
+			VERBOSITY = VERBOSITY + 1
+
+		elif opt == '-l':
+			if val == 'all': LEVEL = 0
+			else: LEVEL = int(val)
+
+		elif opt == '-d':
+			DELAY = int(val)
+
+	if len(args) == 0:
+		raise SystemError(__usage__)
+
+	HOST = args[0]
+	QUERY = ' '.join(args[1:])
+
+	import re
+	import time
+	import met.google
+
+	google = met.google.GoogleEngine()
+
+	index = 1
+	last_result = None
+
+	while True:
+		if index != 1:
+			print_v('sleeping for %d seconds' % DELAY, 3)
+			time.sleep(DELAY)
+
+		if index == 1: start = 1
+		else: start = (index - 1) * 100
+
+		result = google.search('site:%s %s' % (HOST, QUERY), start, 100)
+
+		if last_result == result:
+			break
+
+		last_result = result
+
+		for item in result:
+			host = re.match('.*?://([^/]*)', item[0]).group(1)
+			print_v('found host %s' % host, 2)
+			RESULTS.add(host)
+
+		if index == LEVEL:
+			break
+
+		index = index + 1
+
+	for host in sorted(RESULTS):
+		print host
+
+	print_v('%d hosts found' % len(RESULTS))
+
+except Exception, e: raise SystemExit(e)

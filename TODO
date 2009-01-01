@@ -1,0 +1,11 @@
+* Revise msn.py and google.py search facilities
+* Decide on met.cache recursive function
+* Clean up met.search and add facilities to display titles and snippets as well
+* Revise met.venum
+* Revise met.senum
+* Start thinking about met.doo and its usage
+* Start thinking about met.mailo and its usage
+
+--------- NEW VERSION ---------------------
+* stores in store.py cannot accept None values... make sure that None values are traslted to ''
+* add standard mechanism for managing stores... delete, create

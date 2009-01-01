@@ -1,0 +1,185 @@
+#!/usr/bin/env python
+#    venum
+#    Copyright (C) 2005  Petko Petkov (GNUCITIZEN) pdp@gnucitizen.org
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+__version__	= '0.5b'
+__author__	= 'Petko Petkov'
+
+__usage__	= """
+usage: met.venum [options] host1 host2 host3 ...
+	-h			- display this page
+	-V			- display version
+	-v			- display verbose messages
+	-d sec		- delay between requests (default 5)
+	-l level	- depth level (1 (default), 2, 3, ... all)
+
+	levels:
+		1		- perform partial msn vhost enumeration
+		2		- perform full msn vhost enumeration
+		3		- perform msn + iphunt vhost enumeration
+				  results are validated
+		4		- perform msn + iphunt + domainsdb enumeration
+				  results are validated
+"""
+
+import sys
+import signal
+signal.signal(signal.SIGINT, lambda signum, frame: sys.exit())
+
+IPS				= []
+LEVEL			= 1
+DELAY			= 5
+RESULTS			= set()
+VERBOSITY		= 0
+
+def print_v(message, level = 1):
+	if level <= VERBOSITY: print '-' * level, message
+
+try:
+	import getopt
+
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'hVvl:d:')
+
+	for opt, val in opts:
+		if opt == '-h':
+			raise SystemExit(__usage__)
+
+		elif opt == '-V':
+			raise SystemExit('met.venum %s' % __version__)
+
+		elif opt == '-v':
+			VERBOSITY = VERBOSITY + 1
+
+		elif opt == '-l':
+			if val == 'all': LEVEL = 4
+			else: LEVEL = int(val)
+
+		elif opt == '-d':
+			DELAY = int(val)
+
+	if len(args) < 1:
+		raise SystemError(__usage__)
+
+	if LEVEL >= 1:
+		import re
+		import time
+		import met.msn
+
+		msn = met.msn.MSNEngine()
+
+	if LEVEL >= 3:
+		import met.iphunt
+
+		iphunt = met.iphunt.IPHuntEngine()
+
+	if LEVEL >= 4:
+		import met.domainsdb
+
+		domainsdb = met.domainsdb.DomainsdbEngine()
+
+	import met.dns
+
+	for arg in args:
+		IPS += met.dns.resolve(arg)
+
+	for ip in set(IPS):
+		print_v('starting %s scan' % ip, 3)
+
+		try:
+			for host in met.dns.reverse(ip):
+				print_v('found vhost %s' % host, 2)
+				RESULTS.add(host)
+
+		except: pass
+
+		if LEVEL >= 1:
+			if LEVEL == 1:
+				print_v('starting msn quick test', 3)
+				stop = 1
+
+			else:
+				print_v('starting msn full test', 3)
+				stop = 0
+
+			index = 1
+			last_results = None
+
+			while True:
+				if index != 1:
+					print_v('sleeping for %d seconds' % DELAY, 3)
+					time.sleep(DELAY)
+
+				if index == 1:
+					start = 0
+
+				else:
+					start = (index - 1) * 100
+
+				results = msn.search('ip:' + ip, start, 100)
+
+				if last_results == results:
+					break
+
+				last_results = results
+
+				for item in results:
+					host = re.match('.*?://([^/]*)', item[0]).group(1).lower()
+					print_v('found vhost %s' % host, 2)
+					RESULTS.add(host)
+
+				if index == stop:
+					break
+
+				index = index + 1
+
+		if LEVEL >= 3:
+			print_v('starting iphunt test', 3)
+
+			for item in iphunt.search(ip):
+				host = re.match('.*?://([^/]*)', item).group(1).lower()
+				print_v('found vhost %s' % host, 2)
+				RESULTS.add(host)
+
+		if LEVEL >= 4:
+			print_v('starting domainsdb test', 3)
+
+			for item in domainsdb.search(ip):
+				host = re.match('.*?://([^/]*)', item).group(1).lower()
+				print_v('found vhost %s' % host, 2)
+				RESULTS.add(host)
+
+	if LEVEL >= 3:
+		res = []
+
+		for vhost in RESULTS:
+			print_v('validating %s' % vhost, 2)
+
+			try:
+				for ip in met.dns.resolve(vhost):
+					if ip in IPS:
+						res.append(vhost)
+
+			except: pass
+
+		RESULTS = res
+
+	for vhost in sorted(RESULTS):
+		print vhost
+
+	print_v('%d vhosts found' % len(RESULTS))
+
+except Exception, e: raise SystemExit(e)

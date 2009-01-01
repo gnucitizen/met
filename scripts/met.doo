@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+#    doo
+#    Copyright (C) 2005  Petko Petkov (GNUCITIZEN) pdp@gnucitizen.org
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+__version__	= '0.1'
+__author__	= 'Petko Petkov'
+
+__usage__	= """
+usage: met.doo [options] query
+	-h			- display this page
+	-V			- display version
+	-v			- display verbose messages
+	-d sec		- delay between requests (default 5)
+	-l level	- depth level (1 (default), 2, 3, ... all)
+"""
+
+import sys
+import signal
+signal.signal(signal.SIGINT, lambda signum, frame: sys.exit())
+
+import time
+import getopt
+import met.netcraft
+
+LEVEL		= 1
+DELAY		= 5
+VERBOSITY	= 0
+
+def print_v(message, level = 1):
+	if level <= VERBOSITY: print '-' * level, message
+
+try:
+	opts, terms = getopt.gnu_getopt(sys.argv[1:], 'hVvd:l:')
+
+	for opt, val in opts:
+		if opt == '-h':
+			raise SystemExit(__usage__)
+
+		elif opt == '-V':
+			raise SystemExit('met.doo %s' % __version__)
+
+		elif opt == '-v':
+			VERBOSITY = VERBOSITY + 1
+
+		elif opt == '-l':
+			if val == 'all': LEVEL = 0
+			else: LEVEL = int(val)
+
+		elif opt == '-d':
+			DELAY = int(val)
+
+	if len(terms) < 1:
+		raise SystemError(__usage__)
+
+	QUERY = ' '.join(terms)
+
+	index = 1
+	results = None
+	last_domain = ''
+	last_results = None
+	netcraft = met.netcraft.NetcraftEngine()
+
+	while True:
+		if index != 1:
+			print_v('sleeping for %d seconds' % DELAY, 1)
+			time.sleep(DELAY)
+
+		if results:
+			last_domain = results[-1][0]
+
+		results = netcraft.search_dns(QUERY, last_domain, index - 1)
+
+		if results == last_results:
+			break
+
+		last_results = results
+
+		for item in results:
+			print item[0]
+
+		if index == LEVEL:
+			break
+
+		index = index + 1
+		
+except Exception, e: raise SystemExit(e)
